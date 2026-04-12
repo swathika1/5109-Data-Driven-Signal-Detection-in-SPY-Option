@@ -1,101 +1,154 @@
-# 5109-Data-Driven-Signal-Detection-in-SPY-Option
+---
 
+# Options Mispricing Strategy using Machine Learning
 
-Dataset link https://www.kaggle.com/datasets/shankerabhigyan/s-and-p500-options-spy-implied-volatility-2019-24?select=spy_options_data_24.json
+## Overview
 
+This project explores whether **machine learning can identify and exploit mispricing in SPY options**.
+Instead of relying on traditional models like Black-Scholes, we train an **XGBoost model** to learn the empirical pricing structure of options and generate trading signals based on deviations between predicted and observed prices.
 
+The key objective is to evaluate whether these deviations represent **true arbitrage opportunities** or are simply **artifacts of market microstructure (e.g., bid-ask spreads, liquidity constraints)**.
 
+---
 
-Idea: Data-Driven Arbitrage Signal Detection in SPY Options 
+## Dataset
 
-The core concept: 
+* Source: S&P 500 (SPY) Options Implied Volatility Dataset (Kaggle: https://www.kaggle.com/datasets/shankerabhigyan/s-and-p500-options-spy-implied-volatility-2019-24?select=spy_options_data_24.json)
+* Period: Jan 2024 – Dec 2024
+* Size: ~2.29M raw records → ~874K after cleaning
+* Features include:
 
-Traditional arbitrage relies on theoretical pricing models such as Black-Scholes, which assume ideal market conditions. However, real markets exhibit frictions, asynchronous data, and behavioural effects. 
+  * Contract details (strike, expiry, type)
+  * Pricing (bid, ask, mid-price)
+  * Greeks (delta, gamma, theta, vega)
+  * Volatility and liquidity metrics
+    
+---
 
-This project adopts a data-driven approach, where machine learning models are used to learn the pricing structure of options and identify systematic deviations between predicted and observed prices, which can serve as potential arbitrage signals. 
+## Methodology
 
-Data Exploration & Analysis (15 pts) 
+### 1. Data Preprocessing
 
-Perform EDA on SPY options dataset:  
+* Removed invalid and illiquid contracts
+* Applied filters on:
 
-distribution of prices, IV, Greeks, and spreads  
+  * Implied volatility (1%–100%)
+  * Relative spread (≤ 50%)
+* Merged SPY spot price using **backward time alignment** to avoid look-ahead bias
 
-Analyse option pricing behaviour across:  
+---
 
-moneyness (strike / spot)  
+### 2. Modelling
 
-time to maturity  
+* **Target**: Option mid-price
 
-implied volatility  
+* **Models Used**:
 
-Visualize:  
+  * Linear Regression (baseline)
+  * XGBoost (advanced model)
 
-price vs strike (smile)  
+* **Data Split (Time-based)**:
 
-IV vs strike (volatility smile)  
+  * Train: Jan–Sep
+  * Validation: Sep–Nov
+  * Test: Nov–Dec
 
-price vs maturity  
+* **Results**:
 
-Study relationships between:  
+  * Linear Regression: R² ≈ 0.57
+  * XGBoost: R² ≈ 0.99, MAE ≈ $1.78
 
-Greeks and option prices  
+---
 
-IV and option price deviations  
+### 3. Signal Construction
 
-Identify regions where pricing behaves nonlinearly:  
+* **Raw Signal**:
 
-deep OTM  
+  ```
+  Signal = Market Price − Model Prediction
+  ```
 
-near expiry  
+* **Economic Signal** (after costs):
 
- 
+  ```
+  |Signal| − (0.5 × spread + hedge cost)
+  ```
 
-The Data Challenge (35 pts) 
+* Trades are triggered only when:
 
-Step 1: Build a predictive pricing model 
+  * Signal exceeds **95th percentile threshold (validation set)**
+  * Contracts are liquid (low spread)
+  * Focus on near-ATM regions
 
-Inputs:  
+---
 
-strike, moneyness, T  
+### 4. Strategy Design
 
-IV, Greeks  
+* **Delta-neutral strategy** to isolate pricing inefficiencies
+* Each trade is held for one period (next quote)
+* Two execution assumptions:
 
-Models:  
+  1. **Midpoint pricing (idealized)**
+  2. **Executable pricing (realistic: bid/ask crossing)**
 
-baseline regression  
+---
 
-advanced: neural network / tree-based model  
+## Key Results
 
-Step 2: Define mispricing signal 
+| Metric           | Midpoint | Executable            |
+| ---------------- | -------- | --------------------- |
+| Sharpe Ratio     | ~2.17    | ~0.60                 |
+| Win Rate         | 56%      | ~49%                  |
+| Median Trade P&L | +78      | −14                   |
+| Total P&L        | High     | Significantly reduced |
 
-Signal=Market Price−Predicted Price  
+### Key Insight
 
-Step 3: Decision-making layer (Prescriptive analytics) 
+Most of the apparent “alpha” disappears when realistic execution is applied.
+-> The majority of detected mispricing lies **within the bid-ask spread**, making it **non-exploitable in practice**.
 
-If signal > threshold → overpriced → sell  
+---
 
-If signal < threshold → underpriced → buy  
+## Additional Analysis
 
-Step 4: Evaluate strategy 
+* **Volatility Regimes**:
 
-Simulate:  
+  * Profitable mainly in **high-volatility periods**
+  * Loss-making in low-vol regimes
 
-returns from signals  
+* **Moneyness**:
 
-Sharpe ratio  
+  * Best performance: Near-ATM options
+  * Poor performance: Illiquid tail options
 
-hit rate  
+* **Greeks**:
 
-Compare:  
+  * Moderate gamma & vega exposure performs best
+  * High gamma trades are unstable due to hedging risk
 
-naive strategy vs model-based  
+---
 
-Step 5: Risk analysis 
+## Limitations
 
-Analyse:  
+* Model may be learning **market pricing function**, not true mispricing
+* Execution assumptions exclude:
 
-signal stability across time  
+  * Slippage
+  * Market impact
+  * Partial fills
+* Static delta hedging (no dynamic rebalancing)
+* Single-year dataset limits robustness
 
-performance in high vs low volatility regimes 
+## Conclusion
+
+While machine learning can accurately model option prices,
+**real-world trading frictions eliminate most arbitrage opportunities**.
+
+The strategy behaves as a **conditional alpha strategy**,
+working only under specific conditions (e.g., high volatility),
+rather than a consistent arbitrage mechanism.
+
+---
+
 
  
